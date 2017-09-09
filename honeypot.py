@@ -1,36 +1,12 @@
 #!/usr/bin/env python
-"""
-Copyright (c) 2011, Daniel Bugl
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-1. Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the following disclaimer in the
-   documentation and/or other materials provided with the distribution.
-3. All advertising materials mentioning features or use of this software
-   must display the following acknowledgement:
-   This product includes software developed by Daniel Bugl.
-4. Neither the name of Daniel Bugl nor the names
-   of its other contributors may be used to endorse or promote products
-   derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY Daniel Bugl ''AS IS'' AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""
 
 import time
 import socket
+import sys
+import subprocess
+import shlex
+
+blocked=["ls","chmod","logname","mv","uname","pwd"]
 
 def getInput():
 	motd = raw_input('MOTD: ')
@@ -62,14 +38,29 @@ def main(host, port, motd):
 	while True:
 		(insock, address) = s.accept()
 		print 'Connection from: %s:%d' % (address[0], address[1])
-		try:
-			insock.send('%s\n'%(motd))
-			data = insock.recv(1024)
-			insock.close()
-		except socket.error, e:
-			writeLog(address)
-		else:
-			writeLog(address, data)
+		out="Connection established\n"
+		block = 5
+		num_exec = 0
+		while(num_exec<block):
+			try:
+				data = insock.recv(100)
+				if shlex.split(data)[0] in blocked:
+					num_exec = num_exec+1
+					name=shlex.split(data)[0]+".txt"
+					with open (name, "r") as myfile:
+    						lines=myfile.read()
+					lines=lines+"\n"
+					out = lines
+					insock.send(out)
+				else:			
+					out=subprocess.check_output(shlex.split(data))
+					insock.send(out)
+							
+			except socket.error, e:
+				writeLog(address)
+			else:
+				writeLog(address, data)
+		insock.close()
         
 if __name__=='__main__':
 	try:
